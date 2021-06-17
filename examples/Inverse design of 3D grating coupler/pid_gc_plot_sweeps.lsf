@@ -1,0 +1,53 @@
+###################################################################
+# Get plot from position and angle sweeps
+#
+# Copyright (c) 2021 Ansys Inc.
+###################################################################
+
+plot_r0 = true;
+plot_theta = true;
+
+suffix_r0 = "r0_sweep";
+suffix_theta = "theta_sweep";
+
+folder_r0 = "sweep_r0";
+folder_theta = "sweep_theta";
+
+# Sweep settings (to update if you modify them):
+n_r0 = 21;
+n_theta = 11;
+
+T_r0 = matrix(n_r0);
+T_theta = matrix(n_theta);
+
+r0_start = 10e-6;
+r0_stop = 12e-6;
+r0 = linspace(r0_start, r0_stop, n_r0);
+
+theta_start = 27;
+theta_stop = 32;
+theta = linspace(theta_start, theta_stop, n_theta);
+
+if (plot_r0) {
+    cd(folder_r0);
+    for (i=1:n_r0) {
+        ?fname = suffix_r0+"_r0"+num2str(r0(i)*1e7);
+        load(fname);
+        T = abs(transmission("fom"));
+        T_r0(i) = T(length(T)/2); # at central frequency
+    }
+    cd("..");
+    plot(r0*1e6, T_r0, "Position (um)", "Transmission");
+}
+if (plot_theta) {
+    cd(folder_theta);
+    for (i=1:n_theta) {
+        ?fname = suffix_theta+"_t"+num2str(theta(i)*100);
+        load(fname);
+        T = abs(transmission("fom"));
+        T_theta(i) = T(length(T)/2);
+    }
+    cd("..");
+    plot(theta, T_theta, "Angle", "Transmission");
+}
+    
