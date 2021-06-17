@@ -1,0 +1,169 @@
+#############################################################################
+# Scriptfile: varFDTD_crossing.lsf  
+#
+# Description:
+# This script sets up the base simulation required for the adjoint shape-based 
+# optimization of the SOI waveguide crossing in 2D
+#
+# Steps include:
+# 1. Define the base simulation parameters 
+# 2. Define the geometry of input and output waveguides
+# 3. Set up source, monitors and simulation region
+# 
+# Copyright 2019, Lumerical Solutions, Inc.
+##############################################################################
+
+switchtolayout;
+selectall;
+delete;
+
+## SIM PARAMS
+size_x=5e-6;
+size_y=5e-6;
+mesh_x=20e-9;
+mesh_y=20e-9;
+finer_mesh_size=4.24e-6;
+mesh_accuracy=4;
+lam_c = 1.550e-6;
+
+## MATERIAL
+opt_material=addmaterial('Dielectric');
+setmaterial(opt_material,'name','Si: non-dispersive');
+n_opt = getindex('Si (Silicon) - Palik',c/lam_c);
+setmaterial('Si: non-dispersive','Refractive Index',n_opt);
+
+sub_material=addmaterial('Dielectric');
+setmaterial(sub_material,'name','SiO2: non-dispersive');
+n_sub = getindex('SiO2 (Glass) - Palik',c/lam_c);
+setmaterial('SiO2: non-dispersive','Refractive Index',n_sub);
+setmaterial('SiO2: non-dispersive',"color",[0, 0, 0, 0]);
+
+## GEOMETRY
+
+#INPUT WAVEGUIDE WEST
+
+addrect;
+set('name','input wg west');
+set('x span',3.0e-6);
+set('y span',0.5e-6);
+set('z span',220e-9);
+set('x',-3.5e-6);
+set('y',0);
+set('z',0);
+set('material','Si: non-dispersive');
+
+#OUTPUT WAVEGUIDES EAST
+
+addrect;
+set('name','output wg east');
+set('x span',3.0e-6);
+set('y span',0.5e-6);
+set('z span',220e-9);
+set('x',3.5e-6);
+set('y',0);
+set('z',0);
+set('material','Si: non-dispersive');
+
+#INPUT WAVEGUIDE - SOUTH
+
+addrect;
+set('name','input wg south');
+set('x span',0.5e-6);
+set('y span',3.0e-6);
+set('z span',220e-9);
+set('x',0);
+set('y',3.5e-6);
+set('z',0);
+set('material','Si: non-dispersive');
+
+#OUTPUT WAVEGUIDES NORTH
+
+addrect;
+set('name','input wg north');
+set('x span',0.5e-6);
+set('y span',3.0e-6);
+set('z span',220e-9);
+set('x',0);
+set('y',-3.5e-6);
+set('z',0);
+set('material','Si: non-dispersive');
+
+# SUBSTRATE
+addrect;
+set('name','sub');
+set('x span',10e-6);
+set('y span',10e-6);
+set('z span',4e-6);
+set('y',0);
+set('x',0);
+set('z',0);
+set('material','SiO2: non-dispersive');
+set('override mesh order from material database',1);
+set('mesh order',3);
+set('alpha',0.8);
+
+## varFDTD
+addvarfdtd;
+
+set('mesh accuracy',mesh_accuracy);
+set('x min',-size_x/2);
+set('x max',size_x/2);
+set('y min',-size_y/2);
+set('y max',size_y/2);
+set('force symmetric y mesh',1);
+set('y min bc','Anti-Symmetric');
+set('z',0);
+
+set('effective index method','variational');
+set('can optimize mesh algorithm for extruded structures',1);
+set('clamp values to physical material properties',1);
+
+set('x0',-2.4e-6);
+set('number of test points',3);
+set('test points',[0,0; 0.0, 2.4; 2.4, 0]*1e-6);
+
+
+## SOURCE
+addmodesource;
+set('direction','Forward');
+set('injection axis','x-axis');
+#set('polarization angle',0);
+set('y',0);
+set("y span",size_y);
+set('x',-2.1e-6);
+set('center wavelength',lam_c);
+set('wavelength span',0);
+set('mode selection','fundamental mode');
+
+
+
+## MESH IN OPTIMIZABLE REGION
+addmesh;
+set('x',0);
+set('x span',finer_mesh_size);
+set('y',0);
+set('y span',finer_mesh_size);
+set('dx',mesh_x);
+set('dy',mesh_y);
+
+## OPTIMIZATION FIELDS MONITOR IN OPTIMIZABLE REGION
+addpower;
+set('name','opt_fields');
+set('monitor type','2D Z-normal');
+set('x',0);
+set('x span',finer_mesh_size);
+set('y',0);
+set('y span',finer_mesh_size);
+set('z',0);
+
+## FOM FIELDS
+
+addpower;
+set('name','fom');
+set('monitor type','Linear Y');
+set('x',2.1e-6);
+set('y',0);
+set('y span',size_y);
+set('z',0);
+
+#save;
