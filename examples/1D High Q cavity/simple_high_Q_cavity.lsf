@@ -1,0 +1,135 @@
+##
+# This example computes the resonance frequency and the quality factor of a basic
+# one-dimensional multi-stack cavity resonator structure.
+##
+
+## Define the geometric parameters of the structure
+mirror_periods = 10; 		        #< Number of mirror periods in each Bragg stack
+n0 = [2; 1];         		        #< Refractive indices per unit cell
+a = 1e-6/2/sqrt(0.5*n0(1)^2+0.5*n0(2)^2); #< Length of unit cell
+d0 = [a/2;a/2];      		        #< Filling fraction is 50% 
+d_cavity = 0.8e-6;		        #< Thickness of the cavity in then center
+
+## Specify mesh resolution 
+target_dx = 1e-6/40;        	#< Target 40 cells per um in the refined regions
+dx = a / round(a/target_dx); 	#< Make sure that actual dx is close to target but commensurate with the unit cell
+
+## Parameters used for the signal analysis
+t_sources_finished = 200e-15;	#< The signal before this time is discarded for the analysis
+f_analysis=[c/1.05e-6, c/0.95e-6];     #< Frequency interval to search for resonances
+
+
+## Construct arrays containing the thickness and refractive index of each layer
+n_mirror = n0;
+d_mirror = d0;
+if(mirror_periods > 1) {
+  for(i=1:mirror_periods-1) {
+    n_mirror = [n_mirror; n0];
+    d_mirror = [d_mirror; d0];
+  }
+}
+
+## The parameters for a single mirror
+n = [1;n_mirror;1];	#< Add vacuum (refractive index 1) to the left and right
+d = [0;d_mirror;0];	#< The thickness of the first and last "layer" is always infinite, the actual value is ignored
+
+# Define a vector of frequencies and angle of incidence
+lambda = linspace(0.5e-6,1.5e-6,1001);
+f = c/lambda;
+n = meshgridx(n,f);
+theta = 0;
+
+# Calculate reflection and transmission coefficients of a single Bragg stack
+RT1 = stackrt(n,d,f);
+
+# Plot theoretical reflection and transmission from one Bragg stack
+plot(lambda*1e6,RT1.Rs,RT1.Ts,"lambda (microns)","R and T","R,T of a single Bragg stack");
+legend("R Theory","T Theory");
+
+# Define vectors of indices, layer thicknesses for cavity resonator with 2 Bragg stacks
+n = [1;n_mirror;1;n_mirror;1];
+d = [0;d_mirror;d_cavity;d_mirror;0];
+
+# Calculate reflection and transmission coefficients of the cavity
+lambda = linspace(0.5e-6,1.5e-6,100001); #< A high resolution is required to even see the peak at all
+f = c/lambda;
+n1 = meshgridx(n,f);
+RT1b = stackrt(n1,d,f);
+plot(lambda*1e6,RT1b.Rs,RT1b.Ts,"lambda (microns)","R and T","R,T of the cavity");
+legend("R Theory","T Theory");
+
+# Very high-resolution frequency range around the expected resonance
+lambda = linspace(0.98843e-6,0.988455e-6,100001);
+f = c/lambda;
+n2 = meshgridx(n,f);
+
+# Calculate reflection and transmission coefficients for cavity resonator
+RT2 = stackrt(n2,d,f);
+
+# Perform theoretical Q factor calculation by integrating the 
+p0 = findpeaks(RT2.Ts);
+f0 = f(p0);
+T_temp = (RT2.Ts) >= 0.5;
+df = abs(integrate(T_temp,1,f)); #< Use the integrate command to compute FWHM
+Q_theory = f0/df;
+plot(lambda*1e6,RT2.Ts);#,RT2.Ts,"lambda (microns)","R and T","Zoom of the cavity mode");
+#legend("R Theory","T Theory");
+?"Theory:   Resonance Wavelength: "+num2str(c/f0*1e9)+"nm;  Q: " + num2str(Q_theory);
+
+
+## This section sets up the cavity resonstor structures, runs the simulation,
+## and extracts the resonance frequencies and quality factors
+
+# Delete previous Bragg stack structures in the simulation file
+switchtolayout;
+groupscope("::model::stack_left");
+deleteall;
+groupscope("::model::stack_right");
+deleteall;
+groupscope("::model");
+
+# Set up Bragg stacks from scratch
+x_span = sum(d);
+for(i=2:length(d)-1) {
+    if(n(i) > 1) {
+        start_x = -x_span/2 + sum(d(1:i));
+        addrect;
+        set("x min",start_x);
+        set("x max",start_x+d(i));
+        set("index",2);
+        set("y",0);
+        set("y span",1e-6);
+        set("name","structures");
+        if(start_x < 0){
+            addtogroup("stack_left");
+        } else{
+            addtogroup("stack_right");
+        }
+    }
+}
+
+# Define mesh override regions for the left and right Bragg stacks using a cellwidth
+# that is commensurate with the periodicity
+select("mesh_left");
+set("x min",-x_span/2+sum(d(1:2)));
+set("x max",get("x min")+(mirror_periods)*a);
+set("y",0);
+set("y span",1e-6);
+set("override x mesh",1);
+set("override y mesh",0);
+set("dx",dx);
+
+select("mesh_right");
+set("x min",-a/2-x_span/2+sum(d(1:2*mirror_periods+3)));
+set("x max",get("x min")+(mirror_periods)*a);
+set("y",0);
+set("y span",1e-6);
+set("override x mesh",1);
+set("override y mesh",0);
+set("dx",dx);
+
+# Run simulation
+run;
+
+Q = getresult("Qanalysis","Q");
+?"Simulation: Resonance Wavelength: "+num2str(Q.lambda*1e9)+"nm;  Q: " + num2str(Q.Q);
